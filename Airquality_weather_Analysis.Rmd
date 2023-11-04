@@ -1,0 +1,35 @@
+---
+title: "Airquality_weather_Analysis"
+author: "Riyas A R"
+date: "11/4/2023"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+#statistical modelling
+library(statisticalModeling)
+library(mosaic)
+library(rpart)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+myWD <- getwd();
+stations<-read.csv(paste(myWD,"/Datasets/Air_Quality/stations.csv",sep = ""))
+# station_hour<-read.csv(paste(myWD,"/Datasets/Air_Quality/station_hour.csv",sep = ""))
+station_day<-read.csv(paste(myWD,"/Datasets/Air_Quality/station_day.csv",sep = ""))
+city_hour<-read.csv(paste(myWD,"/Datasets/Air_Quality/city_hour.csv",sep = ""))
+city_day<-read.csv(paste(myWD,"/Datasets/Air_Quality/city_day.csv",sep = ""))
+
+Bangalore_City<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/Bangalore_1990_2022_BangaloreCity.csv",sep = ""))
+Chennai_Madras<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/Chennai_1990_2022_Madras.csv",sep = ""))
+Delhi_Safdarjung<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/Delhi_NCR_1990_2022_Safdarjung.csv",sep = ""))
+Station_GeoLocation<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/Station_GeoLocation_Longitute_Latitude_Elevation_EPSG_4326.csv",sep = ""))
+weather_Bhubhneshwar<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/weather_Bhubhneshwar_1990_2022.csv",sep = ""))
+weather_Rourkela<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/weather_Rourkela_2021_2022.csv",sep = ""))
+```
+
+

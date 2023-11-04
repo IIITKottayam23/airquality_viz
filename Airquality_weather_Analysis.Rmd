@@ -1,29 +1,40 @@
 ---
-title: "Airquality_weather_Analysis"
-author: "Riyas A R"
+title: "Mini Project - Airquality And Weather data of Indian Cities"
+author: "Riyas A R (2023MCS120001)"
 date: "11/4/2023"
 output: html_document
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+# Objectives
+#### The objectives planned for this mini project is as below:
+1. Analysis of weather data for Indian cities
+2. Analyis of Air Quality data for Indian Cities
+
+
+# Preliminary analysis
+#### The following libraries are used for analysis:
 ```{r}
-#statistical modelling
 library(statisticalModeling)
 library(mosaic)
 library(rpart)
 library(dplyr)
 library(ggplot2)
+library(tidyr)
 ```
 
+#### Loaded the Air Quality data and Wether data for processing
 ```{r}
 myWD <- getwd();
+#Loading Air Quality Data
 stations<-read.csv(paste(myWD,"/Datasets/Air_Quality/stations.csv",sep = ""))
 # station_hour<-read.csv(paste(myWD,"/Datasets/Air_Quality/station_hour.csv",sep = ""))
 station_day<-read.csv(paste(myWD,"/Datasets/Air_Quality/station_day.csv",sep = ""))
 city_hour<-read.csv(paste(myWD,"/Datasets/Air_Quality/city_hour.csv",sep = ""))
 city_day<-read.csv(paste(myWD,"/Datasets/Air_Quality/city_day.csv",sep = ""))
 
+#Loading Weather Data
 Bangalore_City<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/Bangalore_1990_2022_BangaloreCity.csv",sep = ""))
 Chennai_Madras<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/Chennai_1990_2022_Madras.csv",sep = ""))
 Delhi_Safdarjung<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/Delhi_NCR_1990_2022_Safdarjung.csv",sep = ""))
@@ -31,5 +42,56 @@ Station_GeoLocation<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Citie
 weather_Bhubhneshwar<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/weather_Bhubhneshwar_1990_2022.csv",sep = ""))
 weather_Rourkela<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/weather_Rourkela_2021_2022.csv",sep = ""))
 ```
+#### Data Cleaning and Preprocessing
+```{r}
+# Filter data for the years 2015 to 2020
+station_day_filtered <- station_day %>%  filter(Date >= 2015 & Date <= 2020)
 
+# Inspect the filtered data
+str(station_day_filtered)
+```
+```{r}
 
+# Check for missing values
+missing_values_after_handling <- colSums(is.na(station_day_filtered))
+missing_values_after_handling_df <- data.frame(Columns = names(missing_values_after_handling), Missing_Values = missing_values_after_handling)
+
+# Display columns with missing values after handling
+missing_values_after_handling_df[missing_values_after_handling_df$Missing_Values > 0, ]
+```
+
+```{r}
+# Adding column City in Air Quality data by day
+station_day_filtered$City <- stations$City[match(station_day_filtered$StationId, stations$StationId)]
+
+#For analysis Considering the Major Cities Bengaluru, Chennai, Delhi, Hyderabad, Mumbai, Bhubhneshwar
+station_day_filtered1 <- station_day_filtered %>% 
+           filter(City %in% c("Bengaluru", "Chennai", "Delhi", "Hyderabad", "Mumbai", "Bhubhneshwar"))
+
+```
+```{r}
+# Define a function to calculate AQI bucket with labels
+calculate_AQI_bucket <- function(AQI_value) {
+  if (AQI_value >= 0 && AQI_value <= 50) {
+    return("Good")
+  } else if (AQI_value >= 51 && AQI_value <= 100) {
+    return("Moderate")
+  } else if (AQI_value >= 101 && AQI_value <= 200) {
+    return("Poor")
+  } else if (AQI_value >= 201 && AQI_value <= 300) {
+    return("Very Poor")
+  } else {
+    return("Severe")
+  }
+}
+# Create a bar chart for AQI by city
+station_day_grp_city <- station_day_filtered1 %>%  group_by(City) %>%
+  summarise(avg_AQI = mean(AQI, na.rm = TRUE), AQI_Bitbucket = calculate_AQI_bucket(avg_AQI))
+bar_chart <- ggplot(station_day_grp_city, aes(x = City, y = avg_AQI, fill = AQI_Bitbucket)) +
+  geom_bar(stat = "identity") +
+  labs(title = "AQI by City", x = "City", y = "AQI") +
+  theme_minimal()
+
+# Display the bar chart
+bar_chart
+```

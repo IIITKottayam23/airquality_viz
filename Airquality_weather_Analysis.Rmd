@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 # Preliminary analysis
-#### The following libraries are used for analysis:
+#### 1. The following libraries are used for analysis:
 ```{r}
 library(statisticalModeling)
 library(mosaic)
@@ -22,9 +22,13 @@ library(rpart)
 library(dplyr)
 library(ggplot2)
 library(tidyr)
+library(naniar)
+library(simputation)
 ```
 
-#### Loaded the Air Quality data and Wether data for processing
+
+
+#### 2. Loaded the Air Quality data and Wether data for processing
 ```{r}
 myWD <- getwd();
 #Loading Air Quality Data
@@ -41,34 +45,81 @@ Delhi_Safdarjung<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_I
 Station_GeoLocation<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/Station_GeoLocation_Longitute_Latitude_Elevation_EPSG_4326.csv",sep = ""))
 weather_Bhubhneshwar<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/weather_Bhubhneshwar_1990_2022.csv",sep = ""))
 weather_Rourkela<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/weather_Rourkela_2021_2022.csv",sep = ""))
+
+population_india_City <- read.csv(paste(myWD,"/Datasets/Population2021_India_Cities.csv",sep = ""))
 ```
-#### Data Cleaning and Preprocessing
+
+
+
+#### 3. Data Cleaning and Preprocessing
 ```{r}
-# Filter data for the years 2015 to 2020
+# Filter the Air Quality data for the years 2015 to 2020
 station_day_filtered <- station_day %>%  filter(Date >= 2015 & Date <= 2020)
 
-# Inspect the filtered data
-str(station_day_filtered)
-```
-```{r}
-
-# Check for missing values
-missing_values_after_handling <- colSums(is.na(station_day_filtered))
-missing_values_after_handling_df <- data.frame(Columns = names(missing_values_after_handling), Missing_Values = missing_values_after_handling)
-
-# Display columns with missing values after handling
-missing_values_after_handling_df[missing_values_after_handling_df$Missing_Values > 0, ]
-```
-
-```{r}
 # Adding column City in Air Quality data by day
 station_day_filtered$City <- stations$City[match(station_day_filtered$StationId, stations$StationId)]
 
-#For analysis Considering the Major Cities Bengaluru, Chennai, Delhi, Hyderabad, Mumbai, Bhubhneshwar
-station_day_filtered1 <- station_day_filtered %>% 
-           filter(City %in% c("Bengaluru", "Chennai", "Delhi", "Hyderabad", "Mumbai", "Bhubhneshwar"))
+# Inspect the filtered data
+str(station_day_filtered)
+
+# For analysing temperature data, we consider only the Delhi City
+# Convert 'time' to Date format
+Delhi_Safdarjung$Date <- as.Date(Delhi_Safdarjung$time, format = "%d-%m-%Y")
+Temp_Delhi_City_filtered <- Delhi_Safdarjung %>%  filter(Date >= as.Date("2015-01-01") & Date <= as.Date("2020-12-31"))
+str(Temp_Delhi_City_filtered)
 
 ```
+
+
+#### 4. Checking the missing Data
+```{r}
+
+# Summarise missingness in each variable of the `airquality` dataset
+miss_var_summary(station_day_filtered)
+
+# Visualize the number of missings in variables in air quality data using `gg_miss_var()`
+gg_miss_var(station_day_filtered)
+
+
+```
+
+```{r}
+
+# Filling missing data in AQI filed of Airquality data using Imputation methods 
+
+station_imp_lm_all <- bind_shadow(station_day_filtered) %>% 
+  impute_lm(AQI ~ PM2.5 + PM10 + NO + NO2 + NOx + NH3 + O3 + Benzene + Toluene ) %>%
+  add_label_shadow()
+miss_var_summary(station_imp_lm_all)
+
+
+```
+
+
+
+#### 5. Analysis of available records
+If we are going to compare cities, the comparison must ideally be between cities with comparable size of records. However, some cities have more records while others have far less. Therefore, it was necessary to take this into consideration while building the case.
+
+```{r}
+# Calculate the number of records for each city
+records_by_city <- station_imp_lm_all %>%
+  group_by(City) %>%  summarize(Records = n()) %>%  arrange(desc(Records))
+# Create a bar graph
+bar_graph <- ggplot(records_by_city, aes(x = reorder(City, -Records), y = Records, fill = City)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Number of Records by City", x = "City", y = "Number of Records") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.position = "none") + # Rotate x-axis labels
+  geom_text(aes(label = Records), vjust = -0.5, size = 3)  # Add data labels
+
+# Display the bar graph
+print(bar_graph)
+```
+
+
+# DETAILED ANALYSIS
+#### 1. Visually compare the air quality levels in different cities
+Identify cities with the highest and lowest AQI values. This can help in understanding the variation in air quality across different locations.
 ```{r}
 # Define a function to calculate AQI bucket with labels
 calculate_AQI_bucket <- function(AQI_value) {
@@ -85,13 +136,57 @@ calculate_AQI_bucket <- function(AQI_value) {
   }
 }
 # Create a bar chart for AQI by city
-station_day_grp_city <- station_day_filtered1 %>%  group_by(City) %>%
-  summarise(avg_AQI = mean(AQI, na.rm = TRUE), AQI_Bitbucket = calculate_AQI_bucket(avg_AQI))
-bar_chart <- ggplot(station_day_grp_city, aes(x = City, y = avg_AQI, fill = AQI_Bitbucket)) +
+station_day_grp_city <- station_imp_lm_all %>%  group_by(City) %>%
+  summarise(avg_AQI = round(mean(AQI, na.rm = TRUE)), AQI_Bitbucket = calculate_AQI_bucket(avg_AQI)) %>%  
+  arrange(desc(avg_AQI))
+
+bar_chart <- ggplot(station_day_grp_city, aes(x = reorder(City, -avg_AQI), y = avg_AQI, fill = AQI_Bitbucket)) +
   geom_bar(stat = "identity") +
   labs(title = "AQI by City", x = "City", y = "AQI") +
-  theme_minimal()
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) # Rotate x-axis labels
+
 
 # Display the bar chart
 bar_chart
 ```
+#### 2. Analyzing to find the relationship between population and air quality by city
+It can provide insights into how population density might be associated with variations in air quality. For this analysis i am using addtional data set of Population2021_India_Cities.csv
+
+```{r}
+population_india_City <- read.csv(paste(myWD,"/Datasets/Population2021_India_Cities.csv",sep = ""))
+merged_quality_population <-left_join(station_day_grp_city, population_india_City, by = "City")
+merged_quality_population <- na.omit(merged_quality_population)
+merged_quality_population <- merged_quality_population[, -which(names(merged_quality_population) == "X")]
+merged_quality_population <- merged_quality_population %>%  arrange(desc(Population.2021.))
+
+ggplot(merged_quality_population, aes(x = Population.2021., y = avg_AQI, color = AQI_Bitbucket)) +
+  geom_point(size = 3, alpha = 0.7) +
+  labs(x = "Population", y = "Air Quality") +
+  ggtitle("Population vs. Air Quality by City") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+```
+
+#### 2. Analyzing to find the relationship between air pollution and specific weather conditions
+The goal is to explore how air pollution (pm25) changes during specific weather conditions.
+```{r}
+
+AQ_day_filtered<-station_day_filtered
+AQ_day_filtered$Date <- as.Date(AQ_day_filtered$Date, format = "%Y-%m-%d")
+Temp_pm25_delhi <- left_join(Temp_Delhi_City_filtered, 
+                         AQ_day_filtered %>% filter(City == "Delhi") %>% select(Date, PM2.5), 
+                         by = "Date")
+Temp_pm25_delhi <- Temp_pm25_delhi %>% filter(!is.na(PM2.5))
+
+# Scatter plot to visualize the relationship between temperature and pm25
+ggplot(Temp_pm25_delhi, aes(x = tavg, y = PM2.5)) +
+  geom_point() +
+  labs(title = "Temperature vs PM2.5",
+       x = "Temperature",
+       y = "PM2.5")
+
+```
+

@@ -1,10 +1,10 @@
 ---
-title: "Mini Project - Analysis of Airquality And Weather data of Indian Cities"
+title: "Mini Project - Analysis of Air quality And Weather data of Indian Cities"
 author: "Riyas A R (2023MCS120001)"
-date: "11/4/2023"
+date: "12/11/2023"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)

@@ -1,19 +1,23 @@
 ---
-title: "Mini Project - Airquality And Weather data of Indian Cities"
+title: "Mini Project - Analysis of Airquality And Weather data of Indian Cities"
 author: "Riyas A R (2023MCS120001)"
 date: "11/4/2023"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-# Objectives
+# OBJECTIVES
 #### The objectives planned for this mini project is as below:
-1. Analysis of weather data for Indian cities
-2. Analyis of Air Quality data for Indian Cities
+1. Analysis of air quality levels in different cities
+2. Analysis to find the relationship between population and air quality by city
+3. Analysis to find the relationship between air pollution and specific weather conditions in Delhi
+4. Use of Statistical modelling predict AQI variable based on related parameters.
 
 
-# Preliminary analysis
+# PRELIMINARY ANALYSIS
 #### 1. The following libraries are used for analysis:
 ```{r}
 library(statisticalModeling)
@@ -24,6 +28,7 @@ library(ggplot2)
 library(tidyr)
 library(naniar)
 library(simputation)
+library(rpart)
 ```
 
 
@@ -33,19 +38,14 @@ library(simputation)
 myWD <- getwd();
 #Loading Air Quality Data
 stations<-read.csv(paste(myWD,"/Datasets/Air_Quality/stations.csv",sep = ""))
-# station_hour<-read.csv(paste(myWD,"/Datasets/Air_Quality/station_hour.csv",sep = ""))
 station_day<-read.csv(paste(myWD,"/Datasets/Air_Quality/station_day.csv",sep = ""))
-city_hour<-read.csv(paste(myWD,"/Datasets/Air_Quality/city_hour.csv",sep = ""))
-city_day<-read.csv(paste(myWD,"/Datasets/Air_Quality/city_day.csv",sep = ""))
 
-#Loading Weather Data
-Bangalore_City<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/Bangalore_1990_2022_BangaloreCity.csv",sep = ""))
-Chennai_Madras<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/Chennai_1990_2022_Madras.csv",sep = ""))
+
+#Loading Weather Data of Delhi
 Delhi_Safdarjung<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/Delhi_NCR_1990_2022_Safdarjung.csv",sep = ""))
 Station_GeoLocation<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/Station_GeoLocation_Longitute_Latitude_Elevation_EPSG_4326.csv",sep = ""))
-weather_Bhubhneshwar<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/weather_Bhubhneshwar_1990_2022.csv",sep = ""))
-weather_Rourkela<-read.csv(paste(myWD,"/Datasets/Temp_And_Precipitation_Cities_IN/weather_Rourkela_2021_2022.csv",sep = ""))
 
+#Loading population Data set of Indian Cities on 2021
 population_india_City <- read.csv(paste(myWD,"/Datasets/Population2021_India_Cities.csv",sep = ""))
 ```
 
@@ -80,17 +80,45 @@ miss_var_summary(station_day_filtered)
 # Visualize the number of missings in variables in air quality data using `gg_miss_var()`
 gg_miss_var(station_day_filtered)
 
-
+# Use `replace_with_na_at()` to replace all missing values with NA
+station_day_filtered<-replace_with_na_at(station_day_filtered,
+                                         .vars = c("PM2.5", "PM10", "NO", "NO2", "NOx", "NH3", "CO", "SO2", "O3", "Benzene", "Toluene", "Xylene", "AQI"),
+                                         ~.x %in% c("na", "", "NaN", " "))
+#For predicting AQI variable, handle missing data by imputing the mean within each city
+station_day_filtered <- station_day_filtered %>%
+  group_by(City) %>%
+  mutate(
+    PM2.5 = ifelse(is.na(PM2.5), mean(PM2.5, na.rm = TRUE), PM2.5),
+    PM10 = ifelse(is.na(PM10), mean(PM10, na.rm = TRUE), PM10),
+    NO2 = ifelse(is.na(NO2), mean(NO2, na.rm = TRUE), NO2),
+	  NO = ifelse(is.na(NO), mean(NO, na.rm = TRUE), NO),
+    NOx = ifelse(is.na(NOx), mean(NOx, na.rm = TRUE), NOx),
+    NH3 = ifelse(is.na(NH3), mean(NH3, na.rm = TRUE), NH3),
+    CO = ifelse(is.na(CO), mean(CO, na.rm = TRUE), CO),
+    SO2 = ifelse(is.na(SO2), mean(SO2, na.rm = TRUE), SO2),
+    O3 = ifelse(is.na(O3), mean(O3, na.rm = TRUE), O3),
+	  Benzene = ifelse(is.na(Benzene), mean(Benzene, na.rm = TRUE), Benzene),
+    Toluene = ifelse(is.na(Toluene), mean(Toluene, na.rm = TRUE), Toluene),
+    NO2 = ifelse(is.na(NO2), mean(NO2, na.rm = TRUE), NO2),
+	  Xylene = ifelse(is.na(Xylene), mean(Xylene, na.rm = TRUE), Xylene),
+    AQI = ifelse(is.na(AQI), mean(AQI, na.rm = TRUE), AQI)
+  ) %>%
+  ungroup()  # Ungroup the data to avoid unintended effects in subsequent operations
 ```
 
 ```{r}
 
 # Filling missing data in AQI filed of Airquality data using Imputation methods 
 
-station_imp_lm_all <- bind_shadow(station_day_filtered) %>% 
-  impute_lm(AQI ~ PM2.5 + PM10 + NO + NO2 + NOx + NH3 + O3 + Benzene + Toluene ) %>%
+station_day_filtered <- bind_shadow(station_day_filtered) %>% 
+  impute_lm(PM10 ~ PM2.5 + NO + NO2 + O3  ) %>%
+  impute_lm(NH3 ~ PM2.5 + NO + NO2 +  O3  ) %>%
+  impute_lm(Xylene ~ PM2.5 + NO + NO2 +  O3  ) %>%
+  impute_lm(Toluene ~ PM2.5 + NO + NO2 +  O3  ) %>%
+  impute_lm(NOx ~ PM2.5 + NO + NO2 +  O3  ) %>%
+  impute_lm(Benzene ~ PM2.5 + NO + NO2 +  O3  ) %>%
   add_label_shadow()
-miss_var_summary(station_imp_lm_all)
+miss_var_summary(station_day_filtered)
 
 
 ```
@@ -102,7 +130,7 @@ If we are going to compare cities, the comparison must ideally be between cities
 
 ```{r}
 # Calculate the number of records for each city
-records_by_city <- station_imp_lm_all %>%
+records_by_city <- station_day_filtered %>%
   group_by(City) %>%  summarize(Records = n()) %>%  arrange(desc(Records))
 # Create a bar graph
 bar_graph <- ggplot(records_by_city, aes(x = reorder(City, -Records), y = Records, fill = City)) +
@@ -136,11 +164,11 @@ calculate_AQI_bucket <- function(AQI_value) {
   }
 }
 # Create a bar chart for AQI by city
-station_day_grp_city <- station_imp_lm_all %>%  group_by(City) %>%
-  summarise(avg_AQI = round(mean(AQI, na.rm = TRUE)), AQI_Bitbucket = calculate_AQI_bucket(avg_AQI)) %>%  
+station_day_grp_city <- station_day_filtered %>%  group_by(City) %>%
+  summarise(avg_AQI = round(mean(AQI, na.rm = TRUE)), AQIBucket = calculate_AQI_bucket(avg_AQI)) %>%
   arrange(desc(avg_AQI))
 
-bar_chart <- ggplot(station_day_grp_city, aes(x = reorder(City, -avg_AQI), y = avg_AQI, fill = AQI_Bitbucket)) +
+bar_chart <- ggplot(station_day_grp_city, aes(x = reorder(City, -avg_AQI), y = avg_AQI, fill = AQIBucket)) +
   geom_bar(stat = "identity") +
   labs(title = "AQI by City", x = "City", y = "AQI") +
   theme_minimal() +
@@ -150,8 +178,10 @@ bar_chart <- ggplot(station_day_grp_city, aes(x = reorder(City, -avg_AQI), y = a
 # Display the bar chart
 bar_chart
 ```
+
+
 #### 2. Analyzing to find the relationship between population and air quality by city
-It can provide insights into how population density might be associated with variations in air quality. For this analysis i am using addtional data set of Population2021_India_Cities.csv
+It can provide insights into how population density might be associated with variations in air quality. For this analysis I am using additional data set of Population2021_India_Cities.csv
 
 ```{r}
 population_india_City <- read.csv(paste(myWD,"/Datasets/Population2021_India_Cities.csv",sep = ""))
@@ -160,7 +190,7 @@ merged_quality_population <- na.omit(merged_quality_population)
 merged_quality_population <- merged_quality_population[, -which(names(merged_quality_population) == "X")]
 merged_quality_population <- merged_quality_population %>%  arrange(desc(Population.2021.))
 
-ggplot(merged_quality_population, aes(x = Population.2021., y = avg_AQI, color = AQI_Bitbucket)) +
+ggplot(merged_quality_population, aes(x = Population.2021., y = avg_AQI, color = AQIBucket)) +
   geom_point(size = 3, alpha = 0.7) +
   labs(x = "Population", y = "Air Quality") +
   ggtitle("Population vs. Air Quality by City") +
@@ -170,8 +200,8 @@ ggplot(merged_quality_population, aes(x = Population.2021., y = avg_AQI, color =
 
 ```
 
-#### 2. Analyzing to find the relationship between air pollution and specific weather conditions
-The goal is to explore how air pollution (pm25) changes during specific weather conditions.
+#### 3. Analyzing to find the relationship between air pollution and specific weather conditions in Delhi City
+The goal is to explore how air pollution (PM2.5) changes during specific temperature condition in Delhi city
 ```{r}
 
 AQ_day_filtered<-station_day_filtered
@@ -184,9 +214,72 @@ Temp_pm25_delhi <- Temp_pm25_delhi %>% filter(!is.na(PM2.5))
 # Scatter plot to visualize the relationship between temperature and pm25
 ggplot(Temp_pm25_delhi, aes(x = tavg, y = PM2.5)) +
   geom_point() +
-  labs(title = "Temperature vs PM2.5",
+  labs(title = "Temperature vs PM2.5 in Delhi",
        x = "Temperature",
        y = "PM2.5")
 
 ```
 
+#### 4. Predicting the Air Quality Index (AQI) using linear and recursive partitioning models.
+Prediction of AQI variable based on parameters PM2.5, PM10, CO, SO2, NO2, O3.
+```{r}
+# Add a column named training_cases to Air Quality data set(station_day_filtered) consisting of random TRUEs and FALSEs.
+# The TRUEs will be the training cases and the FALSEs will be the testing cases.
+station_day_filtered$training_cases<-rnorm(nrow(station_day_filtered)) > 0
+
+#Build the linear model AQI~M2.5 + PM10 + CO + SO2 + NO2 + O3 with training cases
+linear_model <- lm(AQI~PM2.5 + PM10 + CO + SO2 + NO2 + O3 , data=subset(station_day_filtered,training_cases))
+
+#Evaluate the model for the testing cases.
+linear_predicts <- evaluate_model(linear_model, data=subset(station_day_filtered,!training_cases))
+
+# Visualize the model
+fmodel(linear_model)
+
+testing_data = subset(station_day_filtered,!training_cases)
+
+# Make predictions on the testing set
+predictions <- predict(linear_model, newdata = testing_data)
+
+#Calculate the MSE on the testing data
+accuracy <- sqrt(mean((predictions - testing_data$AQI)^2))
+print(paste("Root Mean Squared Error (RMSE) of linear modelling :", round(accuracy, 2)))
+```
+```{r}
+
+#Build the recursive partitioning model AQI~PM2.5+PM10+CO+SO2+NO2+O3 with training cases
+recursive_model <- rpart(AQI~PM2.5 + PM10 + CO + SO2 + NO2 + O3, data=subset(station_day_filtered,training_cases),cp=0.002)
+
+#Evaluate the model for the testing cases.
+recursive_predicts <- evaluate_model(recursive_model, data=subset(station_day_filtered,!training_cases))
+
+# Visualize the model
+fmodel(recursive_model)
+
+testing_data = subset(station_day_filtered,!training_cases)
+
+# Make predictions on the testing set
+predictions <- predict(recursive_model, newdata = testing_data)
+
+#Calculate the MSE on the testing data
+accuracy <- sqrt(mean((predictions - testing_data$AQI)^2))
+print(paste("Root Mean Squared Error (RMSE) of recursive partitioning model :", round(accuracy, 2)))
+
+
+```
+
+# OUTCOMES
+1. In Air Quality data set, more records(38588) are available for Delhi city, and less recored(106) are available for Bhopal city.
+2. The air quality in Ahmedabad is classified as severe, or extremely unhealthy, based on our comparison of the levels in other cities.
+3. Patna, Delhi, Gurugram, and Lucknow have Very Poor (Unhealthy) levels of air quality.
+4. The air quality in Shillong City is good.
+5. We found that the population and air pollution relationship is not linear and that other factors, such as economic activity, urbanization, energy sources, transportation, land use patterns, weather, and the efficacy of environmental policies, may influence air pollution.
+6. The concentration of particulate matter (PM2.5) has been significantly influenced by meteorological parameters especially by temperature. The results show that the concentration of PM2.5 has inverse relationship with the temperature.
+7. Using other related parameters in Air Quality data set, predict the AQI values. Here, the AQI value is predicted using linear modeling under the presumption that the AQI values depend on other air quality parameters.
+
+# Results and Discussion
+1. In the Air Quality Data Set, missing data is the main challenge.
+2. Delhi has the highest number of records (38,588), while Bhopal has the least (106). Variations in the number of records could affect the data's representativeness for some cities, so careful consideration during analysis is necessary.
+3. The air quality in Ahmedabad is Severe (Very Unhealthy), while it is Very Poor (Unhealthy) in Patna, Delhi, Gurugram, and Lucknow. To reduce health risks, policy measures and targeted interventions must identify cities with severe air quality.
+4. Temperature is one major meteorological factor that affects PM2.5 levels. It is possible to develop efficient pollution reduction strategies by having a clear understanding of these relationships.
+5. Predictive modeling allows for forecasting air quality levels, providing a valuable tool for proactive pollution control measures and public health planning.
